@@ -1,0 +1,6 @@
+# See http://processors.wiki.ti.com/index.php/FAQ_-_CCSv5#Q:_Which_project_files_do_I_need_to_check_into_source_control.3F
+.config
+.xdchelp
+.launches/
+Debug/
+Release/
