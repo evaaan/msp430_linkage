@@ -4,21 +4,20 @@
 
 #include  "msp430g2553.h"
 
-#define     LED1                     BIT0
 #define     LED2                     BIT6
 #define     SERVO_L                  BIT4
 #define     SERVO_R                  BIT7
-#define     ADC_L                    BIT1
-#define     ADC_R                    BIT2
+#define     ADC_L                    BIT0
+#define     ADC_R                    BIT1
 
 #define     TIMER_PWM_PERIOD         20000  // microseconds
 #define     SERVO_PULSE_DEFAULT      1500
-#define     SERVO_PULSE_MIN          1000
-#define     SERVO_PULSE_MAX          2000
+#define     SERVO_PULSE_MIN          800
+#define     SERVO_PULSE_MAX          2200
 
 unsigned long i;
 int sign = 0;
-unsigned int result;
+unsigned int result[2];
 
 void InitializeTimerPwm(void);
 void InitializeClocks(void);
@@ -29,7 +28,7 @@ void ToggleServos(void);
 void main(void) {
 
     WDTCTL = WDTPW | WDTHOLD;     // stop watchdog timer
-    P1DIR = SERVO_L + SERVO_R + LED1 + LED2;
+    P1DIR = SERVO_L + SERVO_R + LED2;
 
     InitializeClocks();
     InitializeTimerPwm();
@@ -37,12 +36,14 @@ void main(void) {
     __enable_interrupt();
 
     while(1) {
-        __delay_cycles(1000);
-        ADC10CTL0 |= ADC10SC + ENC;
-        __bis_SR_register(CPUOFF + GIE);
-        result = ADC10MEM;
+        ADC10CTL0 &= ~ENC;
+        while (ADC10CTL1 & BUSY);
+        ADC10SA = (int)result;
+        ADC10CTL0 |= ENC + ADC10SC;   // Sampling and conversion ready
+        __bis_SR_register(CPUOFF + GIE); // LPM0, ADC10_ISR will force exit
 
-        SetServoPulse(SERVO_PULSE_MIN + result, SERVO_PULSE_MAX - result);
+
+        SetServoPulse(SERVO_PULSE_MIN + result[0]*1.5, SERVO_PULSE_MIN + result[1]*1.5);
     }
 
 }
@@ -50,7 +51,7 @@ void main(void) {
 void ToggleServos(void) {
 
     while(1) {
-          P1OUT ^= LED1 + LED2;
+          P1OUT ^= LED2;
           for(i=0; i < 100000; i++) {
           }
           if (sign == 0) {
@@ -76,9 +77,10 @@ void SetServoPulse(int pulse_left, int pulse_right) {
 
 void InitializeADC(void) {
 
-    ADC10CTL1 = INCH_1 + ADC10DIV_3; // P1.1, single sample single conversion
-    ADC10AE0 |= ADC_L;
-    ADC10CTL0 = ADC10SHT_3 + ADC10ON + ADC10IE; // 16x clks, on, interrupt enable
+    ADC10CTL1 = INCH_1 + CONSEQ_1; // P1.1/P1.0, sequence-of-channels
+    ADC10CTL0 = ADC10SHT_3 + MSC + ADC10ON + ADC10IE; // 16x clks, on, interrupt enable
+    ADC10AE0 |= ADC_L + ADC_R;                  // P1.1/P1.0 Analog Input Enable
+    ADC10DTC1 = 0x2; // 2 conversions
 
 }
 
